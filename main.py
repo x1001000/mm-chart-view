@@ -115,20 +115,34 @@ def analyze_chart(client, image_bytes: bytes, series_info: list[tuple[str, list]
 def main():
     st.set_page_config(page_title="MacroMicro Chart Analyst", layout="wide")
 
-    # Custom CSS to make sidebar wider
+    # Custom CSS for responsive sidebar
     st.markdown(
         """
         <style>
-        [data-testid="stSidebar"] {
-            min-width: 550px;
-            max-width: 650px;
+        /* Desktop: wider sidebar */
+        @media (min-width: 768px) {
+            [data-testid="stSidebar"] {
+                min-width: 550px;
+                max-width: 650px;
+            }
+        }
+
+        /* Mobile: full width sidebar when open */
+        @media (max-width: 767px) {
+            [data-testid="stSidebar"] {
+                min-width: 100vw;
+                max-width: 100vw;
+            }
+            [data-testid="stSidebar"] > div {
+                padding: 1rem;
+            }
         }
         </style>
         """,
         unsafe_allow_html=True
     )
 
-    st.title("MacroMicro Chart Analyst")
+    st.title("MM Chart Analyst")
 
     # Initialize session state
     if "messages" not in st.session_state:
@@ -142,10 +156,10 @@ def main():
 
     # Sidebar for chart URL input
     with st.sidebar:
-        st.header("Chart Input")
+        st.header("MacroMicro Chart URL")
         url = st.text_input(
-            "MacroMicro Chart URL",
-            placeholder="e.g., macromicro.me/charts/444/us-mm-gspc"
+            "Input here or try the example:",
+            value="https://www.macromicro.me/charts/444/us-mm-gspc"
         )
 
         if st.button("Load Chart"):
@@ -182,9 +196,9 @@ def main():
                 st.subheader("Series Data")
                 for name, values in st.session_state.series_info:
                     if len(values) >= 2:
-                        st.write(f"**{name}**: {values[0]} -> {values[1]}")
+                        st.write(f"**{name}**:  \n{values[0]} -> {values[1]}")
                     elif len(values) == 1:
-                        st.write(f"**{name}**: {values[0]}")
+                        st.write(f"**{name}**:  \n{values[0]}")
 
     # Main chat area
     if not st.session_state.chart_id:
