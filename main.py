@@ -127,14 +127,11 @@ def main():
             }
         }
 
-        /* Mobile: full width sidebar when open */
+        /* Mobile: let Streamlit handle sidebar natively */
         @media (max-width: 767px) {
             [data-testid="stSidebar"] {
-                min-width: 100vw;
-                max-width: 100vw;
-            }
-            [data-testid="stSidebar"] > div {
-                padding: 1rem;
+                min-width: 300px;
+                max-width: 85vw;
             }
         }
         </style>
