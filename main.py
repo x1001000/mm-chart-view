@@ -40,23 +40,24 @@ def fetch_chart_data(chart_id: str) -> dict | None:
         return None
 
 
-def get_series_info(data: dict, chart_id: str) -> list[tuple[str, list]]:
-    """Extract series names and latest two values."""
+def get_chart_data(data: dict, chart_id: str) -> dict:
+    """Extract chart description, series names and latest two values."""
     try:
         chart_data = data['data'][f'c:{chart_id}']
+        description = chart_data['info']['description_tc']
         series_configs = chart_data['info']['chart_config']['seriesConfigs']
         series_data = chart_data['series']
 
-        result = []
+        series = []
         for i, config in enumerate(series_configs):
             name = config.get('name_tc', f'Series {i+1}')
             if i < len(series_data):
                 latest_two = series_data[i][-2:] if len(series_data[i]) >= 2 else series_data[i]
-                result.append((name, latest_two))
-        return result
+                series.append((name, latest_two))
+        return {"description": description, "series": series}
     except (KeyError, IndexError) as e:
         st.error(f"Failed to parse chart data: {e}")
-        return []
+        return {"description": "", "series": []}
 
 
 def fetch_image_bytes(url: str) -> bytes | None:
@@ -75,10 +76,13 @@ def get_gemini_client():
     return genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
 
-def format_series_info(series_info: list[tuple[str, list]]) -> str:
-    """Format series info as text for the prompt."""
-    lines = ["Chart Data (Latest Two Values):"]
-    for name, values in series_info:
+def format_chart_data(chart_data: dict) -> str:
+    """Format chart data as text for the prompt."""
+    lines = []
+    if chart_data.get("description"):
+        lines.append(f"Chart Description: {chart_data['description']}")
+    lines.append("Chart Data (Latest Two Values):")
+    for name, values in chart_data["series"]:
         if len(values) >= 2:
             lines.append(f"- {name}: {values[0]} -> {values[1]}")
         elif len(values) == 1:
@@ -86,9 +90,9 @@ def format_series_info(series_info: list[tuple[str, list]]) -> str:
     return "\n".join(lines)
 
 
-def analyze_chart(client, image_bytes: bytes, series_info: list[tuple[str, list]], user_prompt: str):
+def analyze_chart(client, image_bytes: bytes, chart_data: dict, user_prompt: str):
     """Send multimodal prompt to Gemini."""
-    series_text = format_series_info(series_info)
+    series_text = format_chart_data(chart_data)
 
     # Create image part
     image_part = types.Part.from_bytes(
@@ -146,8 +150,8 @@ def main():
         st.session_state.messages = []
     if "chart_id" not in st.session_state:
         st.session_state.chart_id = None
-    if "series_info" not in st.session_state:
-        st.session_state.series_info = []
+    if "chart_data" not in st.session_state:
+        st.session_state.chart_data = {"description": "", "series": []}
     if "image_bytes" not in st.session_state:
         st.session_state.image_bytes = None
 
@@ -169,7 +173,7 @@ def main():
                     # Fetch chart data
                     data = fetch_chart_data(chart_id)
                     if data:
-                        st.session_state.series_info = get_series_info(data, chart_id)
+                        st.session_state.chart_data = get_chart_data(data, chart_id)
 
                     # Fetch image
                     image_url = get_preview_image_url(chart_id)
@@ -188,10 +192,13 @@ def main():
             if st.session_state.image_bytes:
                 st.image(st.session_state.image_bytes, use_container_width=True)
 
-            # Display series info
-            if st.session_state.series_info:
+            # Display chart data
+            if st.session_state.chart_data.get("description"):
+                st.subheader("Description")
+                st.write(st.session_state.chart_data["description"])
+            if st.session_state.chart_data.get("series"):
                 st.subheader("Series Data")
-                for name, values in st.session_state.series_info:
+                for name, values in st.session_state.chart_data["series"]:
                     if len(values) >= 2:
                         st.write(f"**{name}**:  \n{values[0]} -> {values[1]}")
                     elif len(values) == 1:
@@ -208,7 +215,13 @@ def main():
             st.markdown(message["content"])
 
     # Chat input
-    if prompt := st.chat_input("Ask about this chart..."):
+    default_prompt = "解說限 100 個字以內，一律以最新值為開頭，一個段落不需列點，不需要說明這張圖表定義，過去歷史著重在圖上不同數據的關係，不需要每次都 highlight 特定年份"
+
+    with st.form("chat_form", clear_on_submit=True):
+        prompt = st.text_area("Prompt", value=default_prompt, height=68, label_visibility="collapsed")
+        submitted = st.form_submit_button("Send")
+
+    if submitted and prompt.strip():
         # Add user message to history
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
@@ -222,7 +235,7 @@ def main():
                     response = analyze_chart(
                         client,
                         st.session_state.image_bytes,
-                        st.session_state.series_info,
+                        st.session_state.chart_data,
                         prompt
                     )
                     st.markdown(response)
