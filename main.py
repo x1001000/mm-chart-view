@@ -229,7 +229,7 @@ def main():
 
         # Generate response
         with st.chat_message("assistant"):
-            with st.spinner("Analyzing..."):
+            with st.spinner("Viewing image and data..."):
                 try:
                     client = get_gemini_client()
                     response = analyze_chart(
