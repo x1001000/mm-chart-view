@@ -4,6 +4,21 @@ from google.genai import types
 import requests
 import re
 
+PRICING = {
+    'gemini-3-flash-preview': {'input': 0.5, 'output': 3, 'thinking': 3, 'caching': 0.05},
+}
+DEFAULT_MODEL = 'gemini-3-flash-preview'
+
+
+def calculate_cost(usage_metadata, model=DEFAULT_MODEL):
+    """Calculate API call cost from usage metadata."""
+    return (
+        usage_metadata.prompt_token_count * PRICING[model]['input'] +
+        usage_metadata.candidates_token_count * PRICING[model]['output'] +
+        (usage_metadata.cached_content_token_count or 0) * PRICING[model]['caching'] +
+        (usage_metadata.thoughts_token_count or 0) * PRICING[model]['thinking']
+    ) / 1e6
+
 
 def extract_chart_id(url: str) -> str | None:
     """Extract chart_id from MacroMicro URL.
@@ -107,13 +122,13 @@ def analyze_chart(client, image_bytes: bytes, chart_data: dict, user_prompt: str
     ]
 
     response = client.models.generate_content(
-        model='gemini-3-flash-preview',
+        model=DEFAULT_MODEL,
         contents=contents,
         config=types.GenerateContentConfig(
             tools=[types.Tool(google_search=types.GoogleSearch())]
         )
     )
-    return response.text
+    return response.text, response.usage_metadata
 
 
 def main():
@@ -154,6 +169,8 @@ def main():
         st.session_state.chart_data = {"description": "", "series": []}
     if "image_bytes" not in st.session_state:
         st.session_state.image_bytes = None
+    if "total_cost" not in st.session_state:
+        st.session_state.total_cost = 0.0
 
     # Sidebar for chart URL input
     with st.sidebar:
@@ -213,6 +230,8 @@ def main():
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
+            if "usage" in message:
+                st.caption(message["usage"])
 
     # Chat input
     default_prompt = "解說限 100 個字以內，一律以最新值為開頭，一個段落不需列點，不需要說明這張圖表定義，過去歷史著重在圖上不同數據的關係，不需要每次都 highlight 特定年份"
@@ -232,14 +251,27 @@ def main():
             with st.spinner("Viewing image and data..."):
                 try:
                     client = get_gemini_client()
-                    response = analyze_chart(
+                    response_text, usage_metadata = analyze_chart(
                         client,
                         st.session_state.image_bytes,
                         st.session_state.chart_data,
                         prompt
                     )
-                    st.markdown(response)
-                    st.session_state.messages.append({"role": "assistant", "content": response})
+                    st.markdown(response_text)
+                    cost = calculate_cost(usage_metadata)
+                    st.session_state.total_cost += cost
+                    usage_text = (
+                        f"Tokens: {usage_metadata.prompt_token_count:,} in, {usage_metadata.candidates_token_count:,} out, "
+                        f"{usage_metadata.thoughts_token_count:,} think, {(usage_metadata.cached_content_token_count or 0):,} cache  \n"
+                        f"Cost: \\${cost:.4f}  \n"
+                        f"Session: \\${st.session_state.total_cost:.4f}"
+                    )
+                    st.caption(usage_text)
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": response_text,
+                        "usage": usage_text,
+                    })
                 except Exception as e:
                     error_msg = f"Error generating response: {e}"
                     st.error(error_msg)
