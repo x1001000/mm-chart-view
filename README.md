@@ -5,10 +5,11 @@ A Streamlit chatbot that views and analyzes MacroMicro financial charts using Go
 ## Features
 
 - Load and display MacroMicro charts by URL
-- AI image understanding of chart preview
-- Chart data including chart description and series names and latest values
-- Chat interface for analyzing charts with Gemini AI
+- Toggle preview image as image prompt to Gemini
+- Chart data (description, bilingual series names, latest values) as text prompt
+- Chat interface with customizable default prompt
 - Google Search grounding for real-time market information
+- Token usage and cost tracking per call and per session
 
 ## Setup
 
@@ -17,9 +18,10 @@ A Streamlit chatbot that views and analyzes MacroMicro financial charts using Go
 uv sync
 ```
 
-2. Create `.streamlit/secrets.toml` with your Gemini API key:
+2. Create `.streamlit/secrets.toml`:
 ```toml
 GEMINI_API_KEY = "your-api-key-here"
+PROXY_URL = "your-proxy-url-here"
 ```
 
 3. Run the app:
@@ -31,7 +33,9 @@ uv run streamlit run main.py
 
 1. Enter a MacroMicro chart URL in the sidebar
 2. Click "Load Chart" to fetch the chart data and preview
-3. Ask questions about the chart in the chat interface
+3. Toggle the preview image checkbox to include/exclude it from the AI prompt
+4. Edit the default prompt or write your own in the chat input
+5. Click "Send" to get AI analysis with Google Search grounding
 
 ### Supported URL Formats
 
