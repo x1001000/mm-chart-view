@@ -65,10 +65,11 @@ def get_chart_data(data: dict, chart_id: str) -> dict:
 
         series = []
         for i, config in enumerate(series_configs):
-            name = config.get('name_tc', f'Series {i+1}')
+            name_tc = config.get('name_tc')
+            name_en = config.get('name_en')
             if i < len(series_data):
                 latest_two = series_data[i][-2:] if len(series_data[i]) >= 2 else series_data[i]
-                series.append((name, latest_two))
+                series.append((name_tc, name_en, latest_two))
         return {"description": description, "series": series}
     except (KeyError, IndexError) as e:
         st.error(f"Failed to parse chart data: {e}")
@@ -97,11 +98,11 @@ def format_chart_data(chart_data: dict) -> str:
     if chart_data.get("description"):
         lines.append(f"Chart Description: {chart_data['description']}")
     lines.append("Chart Data (Latest Two Values):")
-    for name, values in chart_data["series"]:
+    for name_tc, name_en, values in chart_data["series"]:
         if len(values) >= 2:
-            lines.append(f"- {name}: {values[0]} -> {values[1]}")
+            lines.append(f"- {name_tc} | {name_en}: {values[0]} -> {values[1]}")
         elif len(values) == 1:
-            lines.append(f"- {name}: {values[0]}")
+            lines.append(f"- {name_tc} | {name_en}: {values[0]}")
     return "\n".join(lines)
 
 
@@ -215,11 +216,11 @@ def main():
                 st.write(st.session_state.chart_data["description"])
             if st.session_state.chart_data.get("series"):
                 st.subheader("Series Data")
-                for name, values in st.session_state.chart_data["series"]:
+                for name_tc, name_en, values in st.session_state.chart_data["series"]:
                     if len(values) >= 2:
-                        st.write(f"**{name}**:  \n{values[0]} -> {values[1]}")
+                        st.write(f"**{name_tc} | {name_en}**  \n{values[0]} -> {values[1]}")
                     elif len(values) == 1:
-                        st.write(f"**{name}**:  \n{values[0]}")
+                        st.write(f"**{name_tc} | {name_en}**  \n{values[0]}")
 
     # Main chat area
     if not st.session_state.chart_id:
@@ -234,7 +235,10 @@ def main():
                 st.caption(message["usage"])
 
     # Chat input
-    default_prompt = "中文解說限 100 個字以內，一律以最新值為開頭，一個段落不需列點，多描述最新數據判斷包含細項，不需要說明這張圖表定義，過去歷史著重在圖上不同數據的關係，不需要每次都 highlight 特定年份\n\n英文解說限 70 個字以內，一律以最新值為開頭，一個段落不需列點，多描述最新數據判斷包含細項，不需要說明這張圖表定義，過去歷史著重在圖上不同數據的關係，不需要每次都 highlight 特定年份"
+    default_prompt = (
+        "中文解說限 100 個字以內，英文解說限 50 個字以內，各寫一段。\n\n"
+        "第一句一定要包含最新值，最好可以提到市場預期與前值的差異，大盤指數、個股股價、商品報價、匯率不要提到，其他數據都要提到，數字單位在文字上要可以被合理閱讀，多引述該數據發布國家主流媒體的描述為最新數據判斷包含細項，但不需要提到媒體名稱與某某機構或人指出，不需要說明這張圖表定義，不要講到歷史的分析，一個段落不需列點。"
+    )
 
     with st.form("chat_form", clear_on_submit=True):
         prompt = st.text_area("Prompt", value=default_prompt, height=150, label_visibility="collapsed")
