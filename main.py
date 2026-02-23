@@ -106,21 +106,19 @@ def format_chart_data(chart_data: dict) -> str:
     return "\n".join(lines)
 
 
-def analyze_chart(client, image_bytes: bytes, chart_data: dict, user_prompt: str):
+def analyze_chart(client, image_bytes: bytes | None, chart_data: dict, user_prompt: str, use_image: bool = True):
     """Send multimodal prompt to Gemini."""
     series_text = format_chart_data(chart_data)
 
-    # Create image part
-    image_part = types.Part.from_bytes(
-        data=image_bytes,
-        mime_type="image/png"
-    )
-
-    contents = [
-        image_part,
-        series_text,
-        user_prompt
-    ]
+    contents = []
+    if use_image and image_bytes:
+        image_part = types.Part.from_bytes(
+            data=image_bytes,
+            mime_type="image/png"
+        )
+        contents.append(image_part)
+    contents.append(series_text)
+    contents.append(user_prompt)
 
     response = client.models.generate_content(
         model=DEFAULT_MODEL,
@@ -154,6 +152,7 @@ def main():
                 max-width: 85vw;
             }
         }
+
         </style>
         """,
         unsafe_allow_html=True
@@ -206,16 +205,19 @@ def main():
             st.divider()
             st.subheader(f"Chart ID: {st.session_state.chart_id}")
 
-            # Display preview image
-            if st.session_state.image_bytes:
+            # Toggle for preview image
+            col1, col2 = st.columns([2, 1], gap="small")
+            col1.subheader("Preview image (as image prompt)")
+            show_image = col2.checkbox("img", value=True, label_visibility="collapsed")
+            if show_image and st.session_state.image_bytes:
                 st.image(st.session_state.image_bytes, use_container_width=True)
 
             # Display chart data
             if st.session_state.chart_data.get("description"):
-                st.subheader("Description")
+                st.subheader("Description (as text prompt)")
                 st.write(st.session_state.chart_data["description"])
             if st.session_state.chart_data.get("series"):
-                st.subheader("Series Data")
+                st.subheader("Series Data (as text prompt)")
                 for name_tc, name_en, values in st.session_state.chart_data["series"]:
                     if len(values) >= 2:
                         st.write(f"**{name_tc} | {name_en}**  \n{values[0]} -> {values[1]}")
@@ -252,14 +254,15 @@ def main():
 
         # Generate response
         with st.chat_message("assistant"):
-            with st.spinner("Viewing image and data..."):
+            with st.spinner("Viewing image and data..." if show_image else "Viewing data..."):
                 try:
                     client = get_gemini_client()
                     response_text, usage_metadata = analyze_chart(
                         client,
                         st.session_state.image_bytes,
                         st.session_state.chart_data,
-                        prompt
+                        prompt,
+                        use_image=show_image,
                     )
                     st.markdown(response_text)
                     cost = calculate_cost(usage_metadata)
