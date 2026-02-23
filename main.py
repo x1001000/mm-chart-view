@@ -234,7 +234,7 @@ def main():
                 st.caption(message["usage"])
 
     # Chat input
-    default_prompt = "解說限 100 個字以內，一律以最新值為開頭，一個段落不需列點，不需要說明這張圖表定義，過去歷史著重在圖上不同數據的關係，不需要每次都 highlight 特定年份"
+    default_prompt = "中文解說限 100 個字以內，一律以最新值為開頭，一個段落不需列點，多描述最新數據判斷包含細項，不需要說明這張圖表定義，過去歷史著重在圖上不同數據的關係，不需要每次都 highlight 特定年份\n\n英文解說限 70 個字以內，一律以最新值為開頭，一個段落不需列點，多描述最新數據判斷包含細項，不需要說明這張圖表定義，過去歷史著重在圖上不同數據的關係，不需要每次都 highlight 特定年份"
 
     with st.form("chat_form", clear_on_submit=True):
         prompt = st.text_area("Prompt", value=default_prompt, height=68, label_visibility="collapsed")
